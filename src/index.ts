@@ -2,21 +2,21 @@
 
 import { Command } from "commander";
 import { initCommand, initExistingCommand } from "./cli/init.js";
-import { storeCommand } from "./cli/store.js";
 import { deleteCommand } from "./cli/delete.js";
-import { recallCommand } from "./cli/recall.js";
 import { inspectCommand } from "./cli/inspect.js";
-import { exportCommand } from "./cli/export.js";
-import { pullCommand } from "./cli/pull.js";
 import { identityCommand } from "./cli/identity.js";
+import { setupCommand } from "./cli/setup.js";
 import { startMcpServer } from "./mcp/server.js";
+import { listConversationsCommand, listContextCommand } from "./cli/list.js";
+import { shareCommand } from "./cli/share.js";
+import { syncCommand } from "./cli/sync.js";
 
 const program = new Command();
 
 program
   .name("sharme")
   .description("Sovereign, portable LLM context layer")
-  .version("0.1.0");
+  .version("0.1.1");
 
 program
   .command("init")
@@ -31,17 +31,6 @@ program
   });
 
 program
-  .command("store")
-  .description("Store a fact in the local cache")
-  .requiredOption("-k, --key <key>", "Fact key (e.g. project:sharme:auth)")
-  .requiredOption("-v, --value <value>", "Fact value")
-  .requiredOption("-t, --tags <tags>", "Comma-separated tags")
-  .option("-s, --scope <scope>", "Scope (global or project:<name>)", "global")
-  .action((options) => {
-    storeCommand(options);
-  });
-
-program
   .command("delete")
   .description("Delete a fact by key")
   .requiredOption("-k, --key <key>", "Fact key to delete")
@@ -50,39 +39,11 @@ program
   });
 
 program
-  .command("recall")
-  .description("Recall context matching a topic")
-  .requiredOption("-t, --topic <topic>", "Topic to search for")
-  .option("-s, --scope <scope>", "Scope filter (defaults to current project + global)")
-  .option("-m, --model <model>", "Target model for budget trimming")
-  .option("--raw", "Output raw JSON instead of formatted context")
-  .action((options) => {
-    recallCommand(options);
-  });
-
-program
   .command("inspect")
   .description("List all stored facts")
   .option("-s, --scope <scope>", "Filter by scope")
   .action((options) => {
     inspectCommand(options);
-  });
-
-program
-  .command("export")
-  .description("Export context formatted for a specific model")
-  .requiredOption("-s, --scope <scope>", "Scope to export")
-  .option("-m, --model <model>", "Target model", "default")
-  .action((options) => {
-    exportCommand(options);
-  });
-
-program
-  .command("pull")
-  .description("Reconstruct context from Arweave on a new device")
-  .option("-w, --wallet <address>", "Wallet address (0x...)")
-  .action(async (options) => {
-    await pullCommand({ wallet: options.wallet });
   });
 
 program
@@ -95,9 +56,59 @@ program
 
 program
   .command("serve")
-  .description("Start the MCP server (used by Cursor and other MCP clients)")
+  .description("Start the MCP server (used by Cursor, Claude, and Codex)")
   .action(async () => {
     await startMcpServer();
+  });
+
+program
+  .command("setup")
+  .description("Configure MCP client settings for Cursor, Claude Desktop/CLI, or Codex")
+  .option("--cursor", "Write/update Cursor MCP config")
+  .option("--claude", "Write/update Claude Desktop MCP config")
+  .option("--claude-cli", "Write/update Claude CLI MCP config (~/.claude.json)")
+  .option("--codex", "Write/update Codex MCP config")
+  .action((options) => {
+    setupCommand(options);
+  });
+
+const list = program
+  .command("list")
+  .description("List conversations and context available for sharing");
+
+list
+  .command("conversations")
+  .description("List discovered conversations (local + remote)")
+  .option("--client <client>", "Filter by client: cursor | claude-code | any", "any")
+  .option("--project <project>", "Filter by project name")
+  .option("--limit <n>", "Maximum rows to show", "30")
+  .option("--local-only", "Only list local conversations, skip remote pull")
+  .action(async (options) => {
+    await listConversationsCommand(options);
+  });
+
+list
+  .command("context")
+  .description("List stored context facts")
+  .option("-s, --scope <scope>", "Filter by scope")
+  .action((options) => {
+    listContextCommand(options);
+  });
+
+program
+  .command("share <conversationId>")
+  .description("Create a share URL/token for a conversation")
+  .option("--client <client>", "Disambiguate duplicate IDs: cursor | claude-code")
+  .option("--verbose", "Show debug details (share ID, tx ID, token)")
+  .action(async (conversationId, options) => {
+    await shareCommand(conversationId, options);
+  });
+
+program
+  .command("sync <urlOrToken>")
+  .description("Import a shared conversation from URL/token")
+  .action(async (urlOrToken) => {
+    await syncCommand(urlOrToken);
   });
 
 program.parse();

@@ -1,5 +1,5 @@
 import Database from "better-sqlite3";
-import type { Fact } from "../types.js";
+import type { Fact, Conversation } from "../types.js";
 
 export function openDatabase(dbPath: string): Database.Database {
   const db = new Database(dbPath);
@@ -33,6 +33,17 @@ function initSchema(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS meta (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS shared_conversation_imports (
+      share_id TEXT PRIMARY KEY,
+      tx_id TEXT NOT NULL,
+      conversation_id TEXT NOT NULL,
+      client TEXT NOT NULL,
+      project TEXT NOT NULL,
+      message_count INTEGER NOT NULL,
+      imported_at TEXT NOT NULL,
+      payload TEXT NOT NULL
     );
   `);
 
@@ -159,6 +170,93 @@ export function incrementAccessCount(
   db.prepare(
     "UPDATE facts SET access_count = access_count + 1 WHERE key = ?"
   ).run(key);
+}
+
+export interface SharedConversationImport {
+  shareId: string;
+  txId: string;
+  conversationId: string;
+  client: "cursor" | "claude-code";
+  project: string;
+  messageCount: number;
+  importedAt: string;
+  conversation: Conversation;
+}
+
+export function hasSharedConversationImport(
+  db: Database.Database,
+  shareId: string
+): boolean {
+  const row = db
+    .prepare("SELECT 1 as ok FROM shared_conversation_imports WHERE share_id = ?")
+    .get(shareId) as { ok: number } | undefined;
+  return Boolean(row?.ok);
+}
+
+export function saveSharedConversationImport(
+  db: Database.Database,
+  entry: {
+    shareId: string;
+    txId: string;
+    conversation: Conversation;
+  }
+): void {
+  db.prepare(
+    `INSERT INTO shared_conversation_imports (
+      share_id, tx_id, conversation_id, client, project, message_count, imported_at, payload
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    entry.shareId,
+    entry.txId,
+    entry.conversation.id,
+    entry.conversation.client,
+    entry.conversation.project,
+    entry.conversation.messages.length,
+    new Date().toISOString(),
+    JSON.stringify(entry.conversation)
+  );
+}
+
+export function getSharedConversationImports(
+  db: Database.Database
+): SharedConversationImport[] {
+  const rows = db
+    .prepare(
+      `SELECT share_id, tx_id, conversation_id, client, project, message_count, imported_at, payload
+       FROM shared_conversation_imports
+       ORDER BY imported_at DESC`
+    )
+    .all() as Array<{
+    share_id: string;
+    tx_id: string;
+    conversation_id: string;
+    client: "cursor" | "claude-code";
+    project: string;
+    message_count: number;
+    imported_at: string;
+    payload: string;
+  }>;
+
+  const imports: SharedConversationImport[] = [];
+  for (const row of rows) {
+    try {
+      const conversation = JSON.parse(row.payload) as Conversation;
+      imports.push({
+        shareId: row.share_id,
+        txId: row.tx_id,
+        conversationId: row.conversation_id,
+        client: row.client,
+        project: row.project,
+        messageCount: row.message_count,
+        importedAt: row.imported_at,
+        conversation,
+      });
+    } catch {
+      // Skip malformed rows.
+    }
+  }
+  return imports;
 }
 
 function rowToFact(row: Record<string, unknown>): Fact {

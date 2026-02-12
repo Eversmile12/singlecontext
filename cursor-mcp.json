@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "sharme": {
-      "command": "node",
-      "args": ["/ABSOLUTE/PATH/TO/sharme/dist/index.js", "serve"]
-    }
-  }
-}

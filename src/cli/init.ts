@@ -6,6 +6,7 @@ import { deriveKey, generateSalt, encrypt, decrypt } from "../core/crypto.js";
 import { openDatabase, setMeta } from "../core/db.js";
 import { deriveKeypairFromPhrase } from "../core/identity.js";
 import { keychainStore } from "../core/keychain.js";
+import { autoSetupDetectedClients } from "./setup.js";
 import {
   generatePhrase,
   validatePhrase,
@@ -126,7 +127,8 @@ export async function initCommand(): Promise<void> {
   console.log("  Shards:   ~/.sharme/shards/");
   console.log("  Identity: ~/.sharme/identity.enc");
   console.log(`\n  Wallet:   ${keypair.address}`);
-  console.log("\nYou can now use `sharme store` to add facts.");
+  printAutoSetupSummary();
+  console.log("\nStart `sharme serve` and use MCP tools to store and recall facts.");
 }
 
 /**
@@ -206,7 +208,7 @@ export async function initExistingCommand(): Promise<void> {
 
   console.log("\nSharme restored at ~/.sharme/");
   console.log(`  Wallet: ${keypair.address}`);
-  console.log("\nRun `sharme serve` to start the MCP server.");
+  printAutoSetupSummary();
 }
 
 /**
@@ -251,4 +253,37 @@ export function getSaltPath(): string {
 
 export function getIdentityPath(): string {
   return IDENTITY_PATH;
+}
+
+function printAutoSetupSummary(): void {
+  const result = autoSetupDetectedClients();
+
+  if (result.detected.length === 0) {
+    console.log("\nNo supported MCP client detected (Cursor, Claude Desktop/CLI, Codex).");
+    console.log("Run `sharme setup --cursor|--claude|--claude-cli|--codex` after installing your client.");
+    return;
+  }
+
+  if (result.configured.length > 0) {
+    console.log(
+      `\nMCP configured automatically for: ${result.configured.map(formatTarget).join(", ")}.`
+    );
+    console.log("Restart your client app so it reloads MCP configuration.");
+  }
+
+  for (const failure of result.failed) {
+    console.warn(`Could not configure ${formatTarget(failure.target)}: ${failure.reason}`);
+  }
+
+  if (result.failed.length > 0) {
+    const commands = result.failed.map((item) => `sharme setup --${item.target}`).join("  ");
+    console.warn(`Run manually if needed: ${commands}`);
+  }
+}
+
+function formatTarget(target: "cursor" | "claude" | "claude-cli" | "codex"): string {
+  if (target === "cursor") return "Cursor";
+  if (target === "claude") return "Claude";
+  if (target === "claude-cli") return "Claude CLI";
+  return "Codex";
 }

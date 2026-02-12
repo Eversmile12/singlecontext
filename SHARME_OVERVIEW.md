@@ -14,11 +14,10 @@ sharme init
 sharme serve
 ```
 
-3. Store and recall context:
+3. Use MCP memory tools while `sharme serve` is running:
 
 ```bash
-sharme store -k "architecture:backend" -v "Use Arweave" -t "architecture,storage" -s "project:myproj"
-sharme recall -t "backend architecture"
+sharme serve
 ```
 
 4. On a new machine:
@@ -122,9 +121,7 @@ Sharme has two save pipelines: one for structured facts and one for conversation
 
 ### Structured Fact Save Pipeline (Step by Step)
 
-1. A fact is created through:
-   - MCP tool `store_fact(...)`, or
-   - CLI `sharme store ...`
+1. A fact is created through MCP tool `store_fact(...)`.
 2. The fact is written to SQLite (`facts` table) with `dirty=1`.
 3. MCP auto-sync loop (every 60 seconds while `sharme serve` runs) reads:
    - dirty facts (`getDirtyFacts`)
@@ -242,10 +239,6 @@ When `recall_conversation(topic, client?, project?)` runs:
 3. Sharme reconstructs SQLite from Arweave and persists local identity material (`salt`, `identity.enc`)
 4. run `sharme serve`
 
-### Alternate Restore Command
-
-- `sharme pull -w <wallet>` also reconstructs local state and now persists identity material needed for normal operation.
-
 ## Security Model (Implemented)
 
 - **Encryption:** AES-256-GCM (`nonce + ciphertext + tag`)
@@ -275,14 +268,6 @@ Custom gateway lists can be set via:
 
 ## Example Workflows
 
-### Save a project decision
-
-```bash
-sharme store -k "storage:backend" -v "Use Arweave for durable shards" -t "storage,arweave,decision" -s "project:sharme"
-```
-
-Stored key becomes `project:sharme:storage:backend` if not already namespaced.
-
 ### Save + Auto-Sync Example (Facts)
 
 1. Start server:
@@ -291,7 +276,7 @@ Stored key becomes `project:sharme:storage:backend` if not already namespaced.
 sharme serve
 ```
 
-2. During work, store facts via MCP tool calls or CLI.
+2. During work, store facts via MCP tool calls.
 3. Within the next sync tick (60s), dirty facts are encrypted and pushed automatically.
 
 ### Save + Auto-Sync Example (Conversations)
@@ -303,11 +288,7 @@ sharme serve
 
 ### Recall current project context
 
-```bash
-sharme recall -t "storage architecture"
-```
-
-Without `--scope`, recall defaults to current project scope + global facts.
+Use the MCP tool `recall_context(topic, scope?)`. Without `scope`, it defaults to current project scope + global facts.
 
 ### New Device Restore Example
 

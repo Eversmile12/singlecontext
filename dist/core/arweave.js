@@ -242,6 +242,60 @@ export async function queryConversationChunks(walletAddress) {
     return chunks;
 }
 /**
+ * Query Arweave for a conversation share transaction by Share-Id.
+ * Returns the newest matching transaction.
+ */
+export async function queryConversationShare(shareId) {
+    const query = `
+    query($shareId: String!) {
+      transactions(
+        tags: [
+          { name: "App-Name", values: ["sharme"] },
+          { name: "Type", values: ["conversation-share"] },
+          { name: "Share-Id", values: [$shareId] }
+        ],
+        sort: HEIGHT_DESC,
+        first: 1
+      ) {
+        edges {
+          node {
+            id
+            tags { name value }
+          }
+        }
+      }
+    }
+  `;
+    const json = (await gqlRequest({
+        query,
+        variables: { shareId },
+    }));
+    if (json.errors && json.errors.length > 0) {
+        const msg = json.errors.map((e) => e.message ?? "unknown").join("; ");
+        throw new Error(`Arweave GraphQL returned errors: ${msg}`);
+    }
+    const node = json.data?.transactions?.edges?.[0]?.node;
+    if (!node)
+        return null;
+    const tagMap = new Map(node.tags.map((t) => [t.name, t.value]));
+    const type = tagMap.get("Type");
+    const taggedShareId = tagMap.get("Share-Id");
+    if (type !== "conversation-share" || taggedShareId !== shareId) {
+        return null;
+    }
+    const wallet = tagMap.get("Wallet") ?? "";
+    const timestamp = tagMap.get("Timestamp") ?? "";
+    const rawSignature = tagMap.get("Signature")?.trim() ?? "";
+    const signature = rawSignature.length > 0 ? rawSignature : null;
+    return {
+        txId: node.id,
+        shareId,
+        wallet,
+        timestamp,
+        signature,
+    };
+}
+/**
  * Download a shard's raw data from Arweave.
  */
 export async function downloadShard(txId, maxBytes) {

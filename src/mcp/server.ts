@@ -61,7 +61,7 @@ export async function startMcpServer(): Promise<void> {
 
   const server = new McpServer({
     name: "sharme",
-    version: "0.1.0",
+    version: "0.1.1",
   });
 
   // ── store_fact ────────────────────────────────────────

@@ -36,7 +36,7 @@ export async function startMcpServer() {
     const defaultScope = `project:${projectName}`;
     const server = new McpServer({
         name: "sharme",
-        version: "0.1.0",
+        version: "0.1.1",
     });
     // ── store_fact ────────────────────────────────────────
     server.tool("store_fact", "Store an important fact for long-term memory. Call this when the user expresses a preference, makes a project decision, shares architectural context, or provides information that should be remembered across sessions.", {
